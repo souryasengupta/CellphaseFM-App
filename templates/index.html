@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CellPhaseFM1.0 : Foundation Model for Cell Segmentation in Phase Images</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+        .image-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .image-box {
+            width: 45%;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background: #fff;
+            min-height: 250px; /* Keeps the box size consistent */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            display: none; /* Hide images initially */
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-top: 10px;
+            font-size: 16px;
+            color: white;
+            background: #28a745;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background: #218838;
+        }
+        .reset-button {
+            background: #dc3545;
+        }
+        .reset-button:hover {
+            background: #c82333;
+        }
+        .disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>CellPhaseFM1.0 : Foundation Model for Cell Segmentation in Phase Images</h1>
+
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
+    <div class="container">
+        <form method="post" enctype="multipart/form-data" id="uploadForm">
+            <input type="hidden" name="existing_image" value="{{ uploaded_image }}">
+            <input type="hidden" name="existing_filename" value="{{ uploaded_filename }}">
+        
+            <label for="file"><b>Choose an Image:</b></label>
+            <input type="file" name="file" id="file" accept="image/png, image/jpeg, image/tiff" onchange="previewImage(event)">
+
+            <span id="filenameDisplay">{% if uploaded_filename %}{{ uploaded_filename }}{% endif %}</span>
+            <br><br>
+            
+            <label for="flow_threshold"><b>Flow Threshold:</b></label>
+            <input type="number" name="flow_threshold" id="flow_threshold" step="0.1" value="{{ flow_threshold if flow_threshold else 0.4 }}" required>
+            <br><br>
+
+
+            <div class="button-container">
+                <button type="submit" class="button">Segment</button>
+                <a href="#" id="downloadButton" class="button disabled" download>Download</a>
+                <button type="button" class="button reset-button" onclick="resetForm()">Reset</button>
+            </div>
+        </form>
+        <div class="image-container">
+            <!-- Uploaded Image -->
+            <div class="image-box">
+                <h2>Uploaded Image</h2>
+                <img id="uploadedPreview" 
+                     src="{% if uploaded_image %}{{ url_for('uploaded_file', filename=uploaded_image) }}{% endif %}" 
+                     alt="Uploaded Image"
+                     style="{% if uploaded_image %}display:block;{% else %}display:none;{% endif %}">
+            </div>
+
+            <!-- Segmented Image -->
+            <div class="image-box">
+                <h2>Segmented Image</h2>
+                <img id="segmentedPreview" 
+                     src="{% if segmented_image %}{{ url_for('uploaded_file', filename=segmented_image) }}{% endif %}" 
+                     alt="Segmented Image"
+                     style="{% if segmented_image %}display:block;{% else %}display:none;{% endif %}">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function previewImage(event) {
+            var reader = new FileReader();
+            reader.onload = function() {
+                var uploadedPreview = document.getElementById("uploadedPreview");
+                uploadedPreview.src = reader.result;
+                uploadedPreview.style.display = "block";  // Show the image
+            }
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        function resetForm() {
+            document.getElementById("uploadForm").reset();
+            document.getElementById("uploadedPreview").src = "";
+            document.getElementById("uploadedPreview").style.display = "none";
+            document.getElementById("segmentedPreview").src = "";
+            document.getElementById("segmentedPreview").style.display = "none";
+
+            var downloadButton = document.getElementById("downloadButton");
+            downloadButton.href = "#";
+            downloadButton.classList.add("disabled");
+            downloadButton.setAttribute("download", "");
+
+            window.location.href = "/";
+        }
+
+        // Show segmented image & enable download button only if segmentation exists
+        window.onload = function() {
+            var segmentedPreview = document.getElementById("segmentedPreview");
+            var uploadedPreview = document.getElementById("uploadedPreview");
+            var downloadButton = document.getElementById("downloadButton");
+
+            var uploadedImageURL = "{{ url_for('uploaded_file', filename=uploaded_image) if uploaded_image else '' }}";
+            var segmentedImageURL = "{{ url_for('uploaded_file', filename=segmented_image) if segmented_image else '' }}";
+
+            if (uploadedImageURL) {
+                uploadedPreview.src = uploadedImageURL;
+                uploadedPreview.style.display = "block";
+            }
+
+            if (segmentedImageURL) {
+                segmentedPreview.src = segmentedImageURL;
+                segmentedPreview.style.display = "block";
+
+                // Enable the download button
+                downloadButton.href = segmentedImageURL;
+                downloadButton.classList.remove("disabled");
+                downloadButton.setAttribute("download", "segmented_image.png");
+            } else {
+                // Disable the download button
+                downloadButton.href = "#";
+                downloadButton.classList.add("disabled");
+                downloadButton.setAttribute("download", "");
+            }
+        };
+    </script>
+    <script>
+        function openSampleModal() {
+            document.getElementById("sampleModal").style.display = "block";
+        }
+    
+        function closeSampleModal() {
+            document.getElementById("sampleModal").style.display = "none";
+        }
+    
+        function selectSampleImage(imageName) {
+            document.getElementById("selectedSample").value = imageName;
+            document.getElementById("uploadForm").submit();  // Auto-submit the form
+        }
+    </script>
+
+</body>
+    <footer>
+        <hr>
+        <p><b>CellPhaseFM1.0</b> is developed and released by the <b>Center for Label-free Imaging and Multiscale Biophotonics</b>, Beckman Institute, University of Illinois Urbana-Champaign.</p>
+        
+        <p>Supported by the <b>National Institute of Health/National Institute of Biomedical Imaging and Bioengineering</b>, Award #: <b>P41EB031772</b>.</p>
+        
+        <p>For inquiries, contact <b>Sourya Sengupta</b> at <a href="mailto:souryas2@illinois.edu">souryas2@illinois.edu</a></p>
+        
+        <p>Source code available on <a href="https://github.com/souryasengupta/CellPhaseFM1.0/tree/main" target="_blank">GitHub</a></p>
+        
+        <p><b>Please cite:</b> "Sengupta et al., CellPhaseFM1.0" if you use this in your work.</p>
+        
+        <p><b>License:</b> Open Source - <a href="https://opensource.org/licenses/MIT" target="_blank">MIT License</a></p>
+    </footer>
+
+
+</html>
